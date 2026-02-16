@@ -7,8 +7,10 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 from collections import defaultdict, deque
 import datetime
-from googletrans import Translator
-translator = Translator()
+from deep_translator import GoogleTranslator
+
+
+
 
 
 
@@ -185,47 +187,34 @@ def build_ollama_prompt(user_message, patient=None, user_id=None, staff_list=Non
     context += f"User query: {user_message}\n\nAssistant:"
     return context
 
+import requests
+
 def ollama_reply_or_fallback(prompt):
-    """Enhanced Ollama response with better error handling."""
+    """Connect directly to local Ollama API (llama3:latest) with error fallback."""
     try:
-        # First check if Ollama is available and models exist
-        try:
-            available_models = ollama.list()
-            model_names = [model['name'] for model in available_models.get('models', [])]
-            print(f"Available models: {model_names}")
-            
-            # Try preferred models in order
-            preferred_models = ["llama3:instruct", "llama3:latest", "llama2:latest", "mistral:latest"]
-            model_to_use = None
-            for model in preferred_models:
-                if model in model_names:
-                    model_to_use = model
-                    break
+        OLLAMA_API = "http://127.0.0.1:11434/api/generate"
+        payload = {
+            "model": "llama3:latest",
+            "prompt": prompt,
+            "stream": False
+        }
 
-            if not model_to_use:
-                model_to_use = "llama3:latest"  # Force to LLaMA3 if nothing matches
-            print(f"✅ Using Ollama model: {model_to_use}")
+        response = requests.post(OLLAMA_API, json=payload, timeout=120)
+        data = response.json()
 
-            
-            if not model_to_use:
-                return "I'm currently undergoing maintenance. Please try again later."
-                
-        except Exception as e:
-            print(f"Error checking Ollama models: {e}")
-            return "AI service is temporarily unavailable. Please contact reception for assistance."
-        
-        response = ollama.chat(
-            model=model_to_use,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        print("Ollama response generated successfully")
-        return response.get("message", {}).get("content", "I couldn't generate a response right now.")
-        
+        # Ollama’s response contains the AI output in 'response'
+        if "response" in data:
+            print("✅ Ollama response generated successfully")
+            return data["response"]
+        else:
+            print(f"Unexpected Ollama response: {data}")
+            return "Sorry, I couldn’t generate a response."
+
     except Exception as e:
         print(f"Ollama error: {e}")
-        # Provide helpful fallback responses
+
+        # Graceful fallback replies
         prompt_lower = prompt.lower()
-        
         if "appointment" in prompt_lower:
             return "To book an appointment, please call our reception at +91-9876543211."
         elif "emergency" in prompt_lower:
@@ -309,8 +298,25 @@ def chat():
         if not user_message:
             return jsonify({"response": "Please type a message to continue."}), 400
 
-        patient = None
+        # 🌍 Detect and translate user input (auto language handling)
+        user_lang = "en"
+        try:
+            translated_user_msg = GoogleTranslator(source='auto', target='en').translate(user_message)
+            # Detect input language automatically
+            detector = GoogleTranslator(source='auto', target='en')
+            detected_text = detector.translate(user_message)
+            if detected_text != user_message:
+                # If translation changed, assume it's not English
+                user_lang = "ta" if any(u'\u0B80' <= ch <= u'\u0BFF' for ch in user_message) else "auto"
+            print(f"Detected language: {user_lang}")
+            print(f"Translated to English: {translated_user_msg}")
+        except Exception as e:
+            print(f"Translation error (user -> en): {e}")
+            translated_user_msg = user_message
+            user_lang = "en"
 
+        # 🏥 Fetch patient data if existing
+        patient = None
         if patient_type == "existing" and patient_id:
             pipeline = [
                 {'$match': {'patientId': patient_id}},
@@ -327,11 +333,11 @@ def chat():
                     'as': 'wardDetails'
                 }}
             ]
-
             result = list(patients_col.aggregate(pipeline))
             if result:
                 patient = result[0]
 
+        # 👩‍⚕️ Fetch hospital staff list
         staff_list = []
         try:
             staff_docs = list(staff_col.find({}, {'name': 1, 'specialization': 1, '_id': 0}))
@@ -339,37 +345,42 @@ def chat():
         except Exception as e:
             print(f"Error fetching staff: {e}")
 
-        # Check FAQs first
-        faq_answer = match_faq(user_message)
+        # 💬 Step 1: Check FAQs
+        faq_answer = match_faq(translated_user_msg)
         if faq_answer:
-            # Store FAQ response in history
-            if patient_id:
-                chat_history[patient_id].append((user_message, faq_answer))
-                store_chat_in_db(patient_id, user_message, faq_answer + MEDICAL_DISCLAIMER)
-            return jsonify({"response": faq_answer + MEDICAL_DISCLAIMER})
+            response_text = faq_answer + MEDICAL_DISCLAIMER
+        else:
+            # 💬 Step 2: Check Symptom Matches
+            symptom_answer = match_symptoms(translated_user_msg)
+            if symptom_answer:
+                response_text = symptom_answer + MEDICAL_DISCLAIMER
+            else:
+                # 💬 Step 3: Use Ollama (llama3:latest)
+                prompt = build_ollama_prompt(translated_user_msg, patient, patient_id, staff_list)
+                reply = ollama_reply_or_fallback(prompt)
+                response_text = reply + MEDICAL_DISCLAIMER
 
-        # Check symptom matches
-        symptom_answer = match_symptoms(user_message)
-        if symptom_answer:
-            # Store symptom response in history
-            if patient_id:
-                chat_history[patient_id].append((user_message, symptom_answer))
-                store_chat_in_db(patient_id, user_message, symptom_answer + MEDICAL_DISCLAIMER)
-            return jsonify({"response": symptom_answer + MEDICAL_DISCLAIMER})
+        # 🌍 Translate bot response back to user's detected language
+        try:
+            if user_lang != "en":
+                translated_response = GoogleTranslator(source='en', target=user_lang).translate(response_text)
+            else:
+                translated_response = response_text
+        except Exception as e:
+            print(f"Translation error (en -> user_lang): {e}")
+            translated_response = response_text
 
-        # Use Ollama for other queries
-        prompt = build_ollama_prompt(user_message, patient, patient_id, staff_list)
-        reply = ollama_reply_or_fallback(prompt)
-        
-        final_response = reply + MEDICAL_DISCLAIMER
-
-        # Store in both memory and database
+        # 💾 Store chat in DB + memory
         if patient_id:
-            chat_history[patient_id].append((user_message, final_response))
-            store_chat_in_db(patient_id, user_message, final_response)
+            chat_history[patient_id].append((user_message, translated_response))
+            store_chat_in_db(patient_id, user_message, translated_response)
 
-        return jsonify({"response": final_response})
-    
+        return jsonify({
+            "response": translated_response,
+            "translated_from": "en",
+            "lang": user_lang
+        })
+
     except Exception as e:
         print(f"Chat route error: {e}")
         error_response = f"Sorry, something went wrong: {e}" + MEDICAL_DISCLAIMER

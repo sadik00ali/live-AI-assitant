@@ -1,1 +1,7 @@
 backend/blueprints/machine/fetal_head_segmentation_model.h5
+# Python cache files
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/

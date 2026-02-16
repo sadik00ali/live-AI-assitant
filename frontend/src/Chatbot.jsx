@@ -1,5 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { 
+  Send, 
+  Bot, 
+  User, 
+  Clock, 
+  Activity, 
+  Stethoscope, 
+  Shield, 
+  Zap, 
+  Target,
+  Plus,
+  Search,
+  X,
+  Trash2,
+  LogOut,
+  Menu,
+  Volume2,
+  ThumbsUp,
+  ThumbsDown,
+  Sparkles,
+  ArrowRight,
+  CheckCircle2,
+  Star
+} from 'lucide-react';
 import './Chatbot.css';
 import API_URL from "./services/api"
 
@@ -192,12 +216,12 @@ const HealthAssistant = () => {
                 {/* Animated Background Elements */}
                 <div className="dynamic-background">
                     <div className="floating-health-icons">
-                        <div className="health-symbol">❤️</div>
-                        <div className="health-symbol">🩺</div>
-                        <div className="health-symbol">💊</div>
-                        <div className="health-symbol">🏥</div>
-                        <div className="health-symbol">🩹</div>
-                        <div className="health-symbol">🔬</div>
+                        <div className="health-symbol"><Stethoscope size={20} /></div>
+                        <div className="health-symbol"><Shield size={20} /></div>
+                        <div className="health-symbol"><Activity size={20} /></div>
+                        <div className="health-symbol"><Bot size={20} /></div>
+                        <div className="health-symbol"><CheckCircle2 size={20} /></div>
+                        <div className="health-symbol"><Star size={20} /></div>
                     </div>
                     <div className="pulse-circles">
                         <div className="pulse-circle"></div>
@@ -211,7 +235,9 @@ const HealthAssistant = () => {
                     <div className="medical-avatar-section">
                         <div className="avatar-wrapper">
                             <div className={`digital-avatar ${avatarState}`}>
-                                <div className="avatar-visage">👨‍⚕️</div>
+                                <div className="avatar-visage">
+                                    <Bot size={32} />
+                                </div>
                                 <div className="avatar-aura"></div>
                                 <div className="avatar-sparks">
                                     <div className="spark"></div>
@@ -240,17 +266,23 @@ const HealthAssistant = () => {
                     {/* Features Display */}
                     <div className="capabilities-grid">
                         <div className="capability-card" style={{ animationDelay: '0.1s' }}>
-                            <div className="capability-icon">⚡</div>
+                            <div className="capability-icon">
+                                <Zap size={24} />
+                            </div>
                             <h3>Instant Support</h3>
                             <p>Get immediate answers to your health questions</p>
                         </div>
                         <div className="capability-card" style={{ animationDelay: '0.2s' }}>
-                            <div className="capability-icon">🎯</div>
+                            <div className="capability-icon">
+                                <Target size={24} />
+                            </div>
                             <h3>Personalized Care</h3>
                             <p>Tailored medical advice based on your needs</p>
                         </div>
                         <div className="capability-card" style={{ animationDelay: '0.3s' }}>
-                            <div className="capability-icon">🛡️</div>
+                            <div className="capability-icon">
+                                <Shield size={24} />
+                            </div>
                             <h3>Secure & Private</h3>
                             <p>DPDP compliant healthcare conversations</p>
                         </div>
@@ -300,7 +332,9 @@ const HealthAssistant = () => {
                                         className={`category-btn ${patientCategory === 'new' ? 'selected' : ''}`}
                                         onClick={() => setPatientCategory('new')}
                                     >
-                                        <span className="button-icon">👤</span>
+                                        <span className="button-icon">
+                                            <User size={16} />
+                                        </span>
                                         New Patient
                                     </button>
                                     <button
@@ -308,7 +342,9 @@ const HealthAssistant = () => {
                                         className={`category-btn ${patientCategory === 'existing' ? 'selected' : ''}`}
                                         onClick={() => setPatientCategory('existing')}
                                     >
-                                        <span className="button-icon">🔄</span>
+                                        <span className="button-icon">
+                                            <CheckCircle2 size={16} />
+                                        </span>
                                         Existing Patient
                                     </button>
                                 </div>
@@ -321,7 +357,7 @@ const HealthAssistant = () => {
                                         className={`medical-id-field ${verificationMessage ? 'invalid' : ''}`}
                                         value={medicalId}
                                         onChange={(e) => setMedicalId(e.target.value)}
-                                        placeholder="Enter your medical ID (e.g., P-68a31ac5)"
+                                        placeholder="Enter your medical ID (e.g., P-68a61522)"
                                         onKeyDown={handleKeyPress}
                                         disabled={verifying}
                                     />
@@ -336,7 +372,10 @@ const HealthAssistant = () => {
                                         </div>
                                     )}
                                     {verificationMessage && (
-                                        <div className="verification-error">❌ {verificationMessage}</div>
+                                        <div className="verification-error">
+                                            <X size={16} />
+                                            {verificationMessage}
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -353,17 +392,30 @@ const HealthAssistant = () => {
                                     </div>
                                 ) : (
                                     <>
-                                        <span className="button-sparkle">✨</span>
+                                        <span className="button-sparkle">
+                                            <Sparkles size={16} />
+                                        </span>
                                         Start Healthcare Journey
-                                        <span className="button-arrow">→</span>
+                                        <span className="button-arrow">
+                                            <ArrowRight size={16} />
+                                        </span>
                                     </>
                                 )}
                             </button>
 
                             <div className="assurance-badges">
-                                <div className="assurance-badge">🔒 DPDP Compliant</div>
-                                <div className="assurance-badge">⭐ 4.9/5 Rating</div>
-                                <div className="assurance-badge">👨‍⚕️ Doctor Approved</div>
+                                <div className="assurance-badge">
+                                    <Shield size={14} />
+                                    DPDP Compliant
+                                </div>
+                                <div className="assurance-badge">
+                                    <Star size={14} />
+                                    4.9/5 Rating
+                                </div>
+                                <div className="assurance-badge">
+                                    <Stethoscope size={14} />
+                                    Doctor Approved
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -384,29 +436,42 @@ const HealthAssistant = () => {
     return (
         <div className="assistant-interface">
             <div className="assistant-header">
-                <span className="header-symbol">💬</span>
-                <h2>HealthGuard Assistant - {userName} {medicalId && `(ID: ${medicalId})`}</h2>
-                <span className="status-indicator"></span>
+                <div className="header-icon">
+                    <Bot size={20} />
+                </div>
+                <h2 className="header-title">
+                    HealthGuard Assistant - {userName} 
+                    {medicalId && <span className="medical-id">(ID: {medicalId})</span>}
+                </h2>
+                <div className="status-indicator">
+                    <div className="status-dot"></div>
+                    <span className="status-text">Online</span>
+                </div>
             </div>
 
             <div className="conversation-panel">
                 {conversation.map((msg, index) => (
                     <div key={index} className={`message-bubble ${msg.sender}`}>
-                        <div className="message-body">
-                            {msg.content}
+                        <div className="message-content">
+                            <div className="message-body">
+                                {msg.content}
+                            </div>
+                            <div className="message-time">
+                                <Clock size={12} />
+                                <span>{formatTimestamp(msg.timestamp)}</span>
+                            </div>
                         </div>
-                        <span className="message-time">{formatTimestamp(msg.timestamp)}</span>
                     </div>
                 ))}
 
                 {aiProcessing && (
                     <div className="processing-indicator">
-                        <div className="pulse-container">
-                            <div className="pulse-animation">
-                                <div className="heart-symbol">❤️</div>
-                            </div>
+                        <div className="processing-animation">
+                            <Activity className="pulse-icon" />
                         </div>
-                        <span className="processing-text">AI Assistant is analyzing...</span>
+                        <span className="processing-text">
+                            AI Assistant is analyzing your query...
+                        </span>
                     </div>
                 )}
 
@@ -425,12 +490,12 @@ const HealthAssistant = () => {
                 <button
                     className={`send-button ${sendingMessage ? 'processing' : ''}`}
                     onClick={sendUserMessage}
-                    disabled={sendingMessage}
+                    disabled={sendingMessage || !userInput.trim()}
                 >
                     {sendingMessage ? (
                         <div className="send-loader"></div>
                     ) : (
-                        <span className="send-symbol">➤</span>
+                        <Send size={18} className="send-icon" />
                     )}
                 </button>
             </div>
