@@ -1,3 +1,20 @@
+.cdss_warning_box{
+  background:#ffe6e6;
+  border:1px solid red;
+  padding:12px;
+  margin-bottom:10px;
+  border-radius:8px;
+}
+
+.cdss_close_btn{
+  background:red;
+  color:white;
+  padding:5px 10px;
+  border:none;
+  border-radius:5px;
+  cursor:pointer;
+}
+
 /* Medication Manager Container */
 .med_manager_container {
   background: #ffffff;

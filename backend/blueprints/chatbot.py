@@ -8,7 +8,10 @@ from bson.objectid import ObjectId
 from collections import defaultdict, deque
 import datetime
 from deep_translator import GoogleTranslator
-
+from PIL import Image
+import pytesseract
+from werkzeug.utils import secure_filename
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
 
@@ -22,6 +25,11 @@ CORS(chatbot_db)
 
 chat_history = defaultdict(list)
 os.environ['OLLAMA_HOST'] = 'http://127.0.0.1:11434'
+
+UPLOAD_FOLDER = "chatimg"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
 # ---------------- MongoDB Setup ----------------
 try:
     client = MongoClient("mongodb://localhost:27017/")
@@ -59,7 +67,7 @@ faq_map = {
     "what are the visiting hours": "Visiting hours are from 4 PM to 7 PM daily. Only 2 visitors per patient are allowed.",
     "do you accept insurance": "Yes, we accept most major insurance providers including ABC Insurance, XYZ Health, and Global Care.",
     "how can i book an appointment": "You can book an appointment:\n• Online through our patient portal\n• By calling reception at +91-9876543211\n• In-person at reception desk",
-    "what is the emergency contact number": "For emergencies, call our 24/7 emergency hotline: +91-9876543210",
+    "what is the emergency contact number": "For emergencies, call our 24/7 emergency hospital lane: +91-9876543210",
     "where is the hospital located": "We are located at: 123 Health Care Avenue, Medical District, City - 560001",
     "what are your operation timings": "Our timings:\n• OPD: 9:00 AM - 6:00 PM\n• Emergency: 24/7\n• Pharmacy: 8:00 AM - 10:00 PM",
 }
@@ -279,12 +287,48 @@ def login():
             "message": f"Server error: {e}"
         }), 500
 
+
+def extract_text_from_image(image_path):
+    """Extract text from uploaded image using OCR."""
+    try:
+        img = Image.open(image_path)
+        text = pytesseract.image_to_string(img)
+        return text.strip()
+    except Exception as e:
+        print(f"OCR error: {e}")
+        return ""
+
 # ---------------- Chat Route ----------------
 @chatbot_db.route("/chat", methods=["POST"])
 def chat():
     try:
-        data = request.get_json(force=True) or {}
+        if request.content_type and "multipart/form-data" in request.content_type:
+            data = request.form.to_dict()
+        else:
+            data = request.get_json(force=True) or {}
+
         user_message = (data.get("message") or "").strip()
+
+        ocr_text = ""
+
+        if 'image' in request.files:
+            image_file = request.files['image']
+
+            if image_file.filename != "":
+                ocr_text = ""
+
+            if 'image' in request.files:
+                image_file = request.files['image']
+
+                if image_file.filename != "":
+                    try:
+                        img = Image.open(image_file.stream)
+                        ocr_text = pytesseract.image_to_string(img).strip()
+                        print("OCR Extracted Text:", ocr_text)
+                    except Exception as e:
+                        print("OCR error:", e)
+
+
 
         # Handle patient ID
         raw_patient_id = data.get("patientId")
@@ -295,13 +339,25 @@ def chat():
 
         patient_type = (data.get("patientType") or "existing").strip().lower()
 
-        if not user_message:
-            return jsonify({"response": "Please type a message to continue."}), 400
+        # allow either typed message OR OCR text
+        if not user_message and not ocr_text:
+            return jsonify({"response": "Please type a message or upload an image."}), 400
+
 
         # 🌍 Detect and translate user input (auto language handling)
         user_lang = "en"
         try:
-            translated_user_msg = GoogleTranslator(source='auto', target='en').translate(user_message)
+            combined_message = ""
+
+            if user_message:
+                combined_message += user_message
+
+            if ocr_text:
+                combined_message += f"\n\nText extracted from uploaded image:\n{ocr_text}"
+
+
+            translated_user_msg = GoogleTranslator(source='auto', target='en').translate(combined_message)
+
             # Detect input language automatically
             detector = GoogleTranslator(source='auto', target='en')
             detected_text = detector.translate(user_message)

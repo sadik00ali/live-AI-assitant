@@ -1,3 +1,235 @@
+/* ================= INPUT SECTION ================= */
+
+.input-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 18px;
+    background: #ffffff;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* ================= IMAGE PREVIEW ================= */
+
+.image-preview-container {
+    width: 100%;
+    animation: slideIn 0.25s ease;
+}
+
+.image-preview-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 8px 10px;
+    position: relative;
+    max-width: 340px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+/* Preview Image */
+.preview-image {
+    width: 52px;
+    height: 52px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+/* Preview Text */
+.preview-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.preview-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.preview-sub {
+    font-size: 11px;
+    color: #6b7280;
+}
+
+/* Remove Button */
+.remove-image-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.9);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+    transition: all 0.2s ease;
+}
+
+.remove-image-btn:hover {
+    background: #ef4444;
+    color: white;
+    transform: scale(1.05);
+}
+
+/* ================= INPUT WRAPPER ================= */
+
+.input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 6px 8px;
+    transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-wrapper:focus-within {
+    border-color: #10a37f;
+    box-shadow: 0 0 0 2px rgba(16,163,127,0.12);
+}
+
+/* ================= IMAGE PICKER ================= */
+
+.image-picker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+.image-picker:hover {
+    background: #ecfdf5;
+    border-color: #10a37f;
+    color: #10a37f;
+}
+
+.image-picker.has-image {
+    background: #10a37f;
+    border-color: #10a37f;
+    color: white;
+}
+
+/* ================= MESSAGE INPUT ================= */
+
+.message-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    padding: 10px;
+    color: #1f2937;
+}
+
+.message-input::placeholder {
+    color: #9ca3af;
+}
+
+.message-input:disabled {
+    color: #9ca3af;
+}
+
+/* ================= SEND BUTTON ================= */
+
+.send-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: none;
+    background: #10a37f;
+    color: white;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.send-button:hover:not(:disabled) {
+    background: #0d8c6c;
+    transform: translateY(-1px) scale(1.03);
+}
+
+.send-button:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+.send-button.processing {
+    background: #64748b;
+}
+
+/* Loader */
+.send-loader {
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* ================= ANIMATIONS ================= */
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 768px) {
+    .image-preview-card {
+        max-width: 100%;
+    }
+
+    .message-input {
+        font-size: 13px;
+    }
+}
+
+.message-image {
+    max-width: 280px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+}
+
+.message-image img {
+    width: 100%;
+    height: 30vh;
+    display: block;
+    border-radius: 12px;
+}
+
 /* ===== WELCOME SCREEN STYLES ===== */
 .welcome-screen {
   min-height: 100vh;
@@ -664,6 +896,7 @@
   border-radius: 12px;
   border: 1px solid #e5e5e5;
   margin-bottom: 16px;
+  width: 9vw;
 }
 
 .processing-animation {

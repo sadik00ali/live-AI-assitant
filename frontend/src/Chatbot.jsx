@@ -22,7 +22,8 @@ import {
   Sparkles,
   ArrowRight,
   CheckCircle2,
-  Star
+  Star,
+  Image
 } from 'lucide-react';
 import './Chatbot.css';
 import API_URL from "./services/api"
@@ -39,6 +40,8 @@ const HealthAssistant = () => {
     const [verifying, setVerifying] = useState(false);
     const [verificationMessage, setVerificationMessage] = useState("");
     const [avatarState, setAvatarState] = useState('default');
+    const [selectedImage, setSelectedImage] = useState(null);
+
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
@@ -139,56 +142,76 @@ const HealthAssistant = () => {
         }
     };
 
-    const sendUserMessage = async () => {
-        if (!userInput.trim() || sendingMessage) return;
+const sendUserMessage = async () => {
+    if ((!userInput.trim() && !selectedImage) || sendingMessage) return;
 
-        const userMsg = { sender: "user", content: userInput, timestamp: new Date() };
-        const updatedConversation = [...conversation, userMsg];
-        setConversation(updatedConversation);
-        setUserInput("");
-        setSendingMessage(true);
-        setAiProcessing(true);
+    // Create user message immediately
+    const userMsg = {
+        sender: "user",
+        content: userInput,
+        image: selectedImage?.preview || null,
+        timestamp: new Date()
+    };
 
-        try {
-            await new Promise(resolve => setTimeout(resolve, 800));
+    const updatedConversation = [...conversation, userMsg];
+    setConversation(updatedConversation);
 
-            const requestPayload = {
-                message: userInput,
-                name: userName,
-                patientType: patientCategory,
-                patientId: medicalId
-            };
+    setUserInput("");
+    setSendingMessage(true);
+    setAiProcessing(true);
 
-            if (patientCategory === "existing") {
-                const verificationResult = await verifyMedicalId();
-                if (verificationResult.valid && verificationResult.patientInfo) {
-                    const patient = verificationResult.patientInfo;
-                    requestPayload.ward = patient.wardNumber;
-                    requestPayload.room = patient.cartNumber;
+    try {
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // ✅ FormData for image upload
+        const formData = new FormData();
+        formData.append("message", userInput);
+        formData.append("name", userName);
+        formData.append("patientType", patientCategory);
+        formData.append("patientId", medicalId);
+
+        if (selectedImage?.file) {
+            formData.append("image", selectedImage.file);
+        }
+
+        const response = await axios.post(
+            `${API_URL}/chat`,
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data"
                 }
             }
+        );
 
-            const response = await axios.post(`${API_URL}/chat`, requestPayload);
+        setAiProcessing(false);
 
-            setAiProcessing(false);
+        setConversation([
+            ...updatedConversation,
+            {
+                sender: "assistant",
+                content: response.data.response,
+                timestamp: new Date()
+            }
+        ]);
 
-            setTimeout(() => {
-                setConversation([
-                    ...updatedConversation,
-                    { sender: "assistant", content: response.data.response, timestamp: new Date() }
-                ]);
-                setSendingMessage(false);
-            }, 500);
+    } catch (error) {
+        setAiProcessing(false);
+        setConversation([
+            ...updatedConversation,
+            {
+                sender: "assistant",
+                content: "Sorry, I'm having trouble connecting to the server.",
+                timestamp: new Date()
+            }
+        ]);
+    }
 
-        } catch (error) {
-            setAiProcessing(false);
-            setSendingMessage(false);
-            setConversation([
-                ...updatedConversation,
-                { sender: "assistant", content: "Sorry, I'm having trouble connecting to the server. Please try again later.", timestamp: new Date() }
-            ]);
-        }
-    };
+    // cleanup
+    removeSelectedImage();
+    setSendingMessage(false);
+};
+
 
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !sendingMessage && !verifying) {
@@ -203,6 +226,42 @@ const HealthAssistant = () => {
     const formatTimestamp = (date) => {
         return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
+
+const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setSelectedImage({
+        file: file,
+        preview: previewUrl
+    });
+};
+
+
+
+const removeSelectedImage = () => {
+    if (selectedImage?.preview) {
+        URL.revokeObjectURL(selectedImage.preview);
+    }
+    setSelectedImage(null);
+
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) fileInput.value = '';
+};
+
+
+
+// Clean up preview URL when component unmounts
+useEffect(() => {
+    return () => {
+        if (selectedImage?.preview) {
+            URL.revokeObjectURL(selectedImage.preview);
+        }
+    };
+}, [selectedImage]);
+
 
     useEffect(() => {
         if (verificationMessage && medicalId) {
@@ -433,74 +492,141 @@ const HealthAssistant = () => {
         );
     }
 
-    return (
-        <div className="assistant-interface">
-            <div className="assistant-header">
-                <div className="header-icon">
-                    <Bot size={20} />
-                </div>
-                <h2 className="header-title">
-                    HealthGuard Assistant - {userName} 
-                    {medicalId && <span className="medical-id">(ID: {medicalId})</span>}
-                </h2>
-                <div className="status-indicator">
-                    <div className="status-dot"></div>
-                    <span className="status-text">Online</span>
-                </div>
+return (
+    <div className="assistant-interface">
+        <div className="assistant-header">
+            <div className="header-icon">
+                <Bot size={20} />
             </div>
-
-            <div className="conversation-panel">
-                {conversation.map((msg, index) => (
-                    <div key={index} className={`message-bubble ${msg.sender}`}>
-                        <div className="message-content">
-                            <div className="message-body">
-                                {msg.content}
-                            </div>
-                            <div className="message-time">
-                                <Clock size={12} />
-                                <span>{formatTimestamp(msg.timestamp)}</span>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-
-                {aiProcessing && (
-                    <div className="processing-indicator">
-                        <div className="processing-animation">
-                            <Activity className="pulse-icon" />
-                        </div>
-                        <span className="processing-text">
-                            AI Assistant is analyzing your query...
-                        </span>
-                    </div>
-                )}
-
-                <div ref={messagesEndRef} className="scroll-marker" />
-            </div>
-
-            <div className="input-section">
-                <input
-                    className="message-input"
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    placeholder="Describe your symptoms or ask a health question..."
-                    disabled={sendingMessage}
-                />
-                <button
-                    className={`send-button ${sendingMessage ? 'processing' : ''}`}
-                    onClick={sendUserMessage}
-                    disabled={sendingMessage || !userInput.trim()}
-                >
-                    {sendingMessage ? (
-                        <div className="send-loader"></div>
-                    ) : (
-                        <Send size={18} className="send-icon" />
-                    )}
-                </button>
+            <h2 className="header-title">
+                HealthGuard Assistant - {userName} 
+                {medicalId && <span className="medical-id">(ID: {medicalId})</span>}
+            </h2>
+            <div className="status-indicator">
+                <div className="status-dot"></div>
+                <span className="status-text">Online</span>
             </div>
         </div>
-    );
+
+        <div className="conversation-panel">
+            {conversation.map((msg, index) => (
+                <div key={index} className={`message-bubble ${msg.sender}`}>
+                    <div className="message-content">
+                        {msg.image && (
+                            <div className="message-image">
+                                <img src={msg.image} alt="Uploaded" />
+                            </div>
+                        )}
+                        <div className="message-body">
+                            {msg.content}
+                        </div>
+                        <div className="message-time">
+                            <Clock size={12} />
+                            <span>{formatTimestamp(msg.timestamp)}</span>
+                        </div>
+                    </div>
+                </div>
+            ))}
+
+            {aiProcessing && (
+                <div className="processing-indicator">
+                    <div className="processing-animation">
+                        <Activity className="pulse-icon" />
+                    </div>
+                    <span className="processing-text">
+                        Thambi w8 pannu paa...
+                    </span>
+                </div>
+            )}
+
+            <div ref={messagesEndRef} className="scroll-marker" />
+        </div>
+
+<div className="input-section">
+
+    {/* ---------- IMAGE PREVIEW ---------- */}
+    {selectedImage && (
+        <div className="image-preview-container">
+            <div className="image-preview-card">
+
+                <img
+                    src={selectedImage.preview}
+                    alt="Selected"
+                    className="preview-image"
+                />
+
+                <div className="preview-info">
+                    <span className="preview-title">Image attached</span>
+                    <span className="preview-sub">
+                        Will be sent with your message
+                    </span>
+                </div>
+
+                <button
+                    type="button"
+                    className="remove-image-btn"
+                    onClick={removeSelectedImage}
+                >
+                    <X size={14} />
+                </button>
+
+            </div>
+        </div>
+    )}
+
+    {/* ---------- INPUT ROW ---------- */}
+    <div className="input-wrapper">
+
+        {/* Image Picker */}
+        <label
+            className={`image-picker ${selectedImage ? "has-image" : ""}`}
+            title="Attach image"
+        >
+            <Image size={20} className="image-icon" />
+            <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                hidden
+            />
+        </label>
+
+        {/* Message Input */}
+        <input
+            className="message-input"
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder={
+                selectedImage
+                    ? "Add description for the image..."
+                    : "Describe your symptoms or ask a health question..."
+            }
+            disabled={sendingMessage}
+        />
+
+        {/* Send Button */}
+        <button
+            className={`send-button ${sendingMessage ? "processing" : ""}`}
+            onClick={sendUserMessage}
+            disabled={
+                sendingMessage ||
+                (!userInput.trim() && !selectedImage)
+            }
+            title="Send message"
+        >
+            {sendingMessage ? (
+                <div className="send-loader"></div>
+            ) : (
+                <Send size={18} className="send-icon" />
+            )}
+        </button>
+
+    </div>
+</div>
+
+    </div>
+);
 };
 
 export default HealthAssistant;
