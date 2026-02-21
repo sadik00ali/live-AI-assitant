@@ -8,3 +8,6 @@ venv/
 chatimg/
 
 patient-app/
+
+.env
+backend/.env
