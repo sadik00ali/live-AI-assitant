@@ -5,7 +5,7 @@ from ultralytics import YOLO
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
-MODEL_PATH = r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\blueprints\machine\diseaseai.pt"
+MODEL_PATH = r"blueprints\machine\diseaseai.pt"
 DOCTOR_NAMES = [
     "Dr. Emily Carter",
     "Dr. Ben Casey",

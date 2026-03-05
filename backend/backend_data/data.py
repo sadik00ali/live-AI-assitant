@@ -4,7 +4,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 
 # ---------------- CONFIG ----------------
-DATA_FOLDER = r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\backend_data\data_json"
+DATA_FOLDER = r"backend_data\data_json"
 DB_NAME = "hospital_db"
 
 # Connect to MongoDB

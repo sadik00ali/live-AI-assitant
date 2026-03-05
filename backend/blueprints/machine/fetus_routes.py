@@ -10,7 +10,7 @@ import io
 fetus_bp = Blueprint('fetus_bp', __name__)
 
 # Load YOLOv8 model once
-MODEL_PATH = r'C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\blueprints\machine\fetus.pt'
+MODEL_PATH = r'blueprints\machine\fetus.pt'
 model = YOLO(MODEL_PATH)
 
 @fetus_bp.route('/predict', methods=['POST'])

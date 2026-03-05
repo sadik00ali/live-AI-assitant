@@ -10,7 +10,7 @@ client = MongoClient("mongodb://localhost:27017/")
 db = client["hospital_db"]
 patients_collection = db["patients"]
 
-UPLOAD_FOLDER = r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\uploads"
+UPLOAD_FOLDER = r"backend\uploads"
 BASE_PATH = "/mypatient/uploads"   # This will be stored in DB
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
