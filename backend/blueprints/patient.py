@@ -110,7 +110,7 @@ def get_all_patients():
 
 
 # ✅ Serve uploaded lab report files
-UPLOAD_FOLDER = r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\uploads"
+UPLOAD_FOLDER = r"backend\uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @patient_bp.route("/uploads/<path:filename>")

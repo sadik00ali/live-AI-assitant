@@ -14,12 +14,12 @@ staff_bp = Blueprint("staff", __name__)
 # CORS(staff_bp)  # Enable CORS for all routes
 
 # Configuration
-ORIGINAL_DATA_PATH = r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\blueprints\hospital_admissions.csv"
-FEATURED_DATA_PATH = r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\blueprints\hospital_admissions_featured.csv"
+ORIGINAL_DATA_PATH = r"backend\blueprints\hospital_admissions.csv"
+FEATURED_DATA_PATH = r"backend\blueprints\hospital_admissions_featured.csv"
 MODEL_PATHS = {
-    'admissions': r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\blueprints\sarimax_admissions_model.joblib",
-    'beds': r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\blueprints\sarimax_beds_model.joblib",
-    'staff': r"C:\Users\prave\OneDrive\Documents\hospital_expo_\clu_care\backend\blueprints\sarimax_staff_model.joblib"
+    'admissions': r"backend\blueprints\sarimax_admissions_model.joblib",
+    'beds': r"backend\blueprints\sarimax_beds_model.joblib",
+    'staff': r"backend\blueprints\sarimax_staff_model.joblib"
 }
 
 
