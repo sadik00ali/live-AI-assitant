@@ -4,6 +4,7 @@ from bson import ObjectId, errors
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -90,20 +91,21 @@ def get_patients_by_doctor(doctor_id):
     patients = []
 
     for patient in patients_cursor:
-        # Convert top-level _id to string
+
         patient["_id"] = str(patient["_id"])
 
-        # Convert assignedDoctor to string if it exists
         if "assignedDoctor" in patient and isinstance(patient["assignedDoctor"], ObjectId):
             patient["assignedDoctor"] = str(patient["assignedDoctor"])
 
-        # Convert labReports _id to string if present
+        # 🚨 REMOVE IMAGE BEFORE JSON RESPONSE
+        if "patientImage" in patient:
+            del patient["patientImage"]
+
         if "labReports" in patient:
             for report in patient["labReports"]:
                 if "_id" in report and isinstance(report["_id"], ObjectId):
                     report["_id"] = str(report["_id"])
 
-        # Convert prescriptions _id to string if present
         if "prescriptions" in patient:
             for pres in patient["prescriptions"]:
                 if "_id" in pres and isinstance(pres["_id"], ObjectId):
@@ -170,9 +172,12 @@ Example:
             "reason":["CDSS unavailable"]
         }
 
+
+
 # ---------------- ADD PRESCRIPTION ----------------
 @doct_db.route("/api/patients/<patient_id>/prescriptions", methods=["POST"])
 def add_prescription(patient_id):
+
     try:
         patient_obj_id = ObjectId(patient_id)
     except errors.InvalidId:
@@ -180,26 +185,40 @@ def add_prescription(patient_id):
 
     data = request.get_json()
 
+    if not data.get("date") or not data.get("medicines"):
+        return jsonify({"message": "Date and medicines required"}), 400
+
+    # 🚨 check override from query
+    override = request.args.get("override")
+
+    # remove empty medicines
+    valid_medicines = [
+        m for m in data["medicines"]
+        if m.get("name") and m.get("dosage") and m.get("time")
+    ]
+
+    if len(valid_medicines) == 0:
+        return jsonify({"message":"Invalid medicines"}),400
+
     patient = patients_collection.find_one({"_id": patient_obj_id})
 
-    cdss_result = analyze_with_cdss(patient, data["medicines"])
+    # 🟢 ONLY RUN CDSS IF override NOT true
+    if override != "true":
 
-    cdss_result = analyze_with_cdss(patient, data["medicines"])
+        cdss_result = analyze_with_cdss(patient, valid_medicines)
 
-    if cdss_result["decision"] == "REJECT":
-        return jsonify({
-            "message": "Prescription Rejected by CDSS",
-            "cdss_analysis": cdss_result["reason"]
-        }), 400
+        if cdss_result.get("decision") == "REJECT":
+            return jsonify({
+                "message": "Prescription Rejected by CDSS",
+                "cdss_analysis": cdss_result.get("reason",[])
+            }), 400
 
-
-    if not data.get("date") or not data.get("medicines"):
-        return jsonify({"message": "Date and medicines are required"}), 400
-
+    # 🟢 SAVE PRESCRIPTION (WITH OR WITHOUT RISK)
     new_prescription = {
         "_id": ObjectId(),
         "date": data["date"],
-        "medicines": data["medicines"]
+        "medicines": valid_medicines,
+        "cdss_override": True if override=="true" else False
     }
 
     result = patients_collection.update_one(
@@ -209,10 +228,12 @@ def add_prescription(patient_id):
 
     if result.modified_count == 1:
         new_prescription["_id"] = str(new_prescription["_id"])
-        return jsonify({"message": "Prescription added", "prescription": new_prescription}), 201
+        return jsonify({
+            "message": "Prescription added",
+            "prescription": new_prescription
+        }), 201
     else:
-        return jsonify({"message": "Failed to add prescription"}), 500
-    
+        return jsonify({"message": "DB update failed"}), 500
 # # ---------------- Medicine data collecction ----------------
 medicine_collection = db["medicine_data"]
 

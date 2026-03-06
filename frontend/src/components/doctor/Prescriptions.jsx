@@ -11,18 +11,25 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Search
+  Search,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  Activity,
+  Filter,
+  Download,
+  Printer,
+  Shield,
+  AlertOctagon
 } from "lucide-react";
-import "./Prescriptions.css";
+import styles from "./Prescriptions.modules.css";
 import API_URL from "../../services/api";
 
-// Small reusable Autocomplete component (no external libs)
+// Enhanced Autocomplete component with better styling
 function Autocomplete({ options = [], value = null, onSelect, placeholder = "Search...", labelKey = "name" }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value ? value[labelKey] || "" : "");
   const [highlight, setHighlight] = useState(0);
-
-
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -30,11 +37,11 @@ function Autocomplete({ options = [], value = null, onSelect, placeholder = "Sea
   }, [value, labelKey]);
 
   const filtered = useMemo(() => {
-    if (!query) return options.slice(0, 10);
+    if (!query) return options.slice(0, 8);
     const q = query.toLowerCase();
     return options
       .filter((opt) => (opt[labelKey] || "").toLowerCase().includes(q))
-      .slice(0, 10);
+      .slice(0, 8);
   }, [options, query, labelKey]);
 
   useEffect(() => {
@@ -60,6 +67,7 @@ function Autocomplete({ options = [], value = null, onSelect, placeholder = "Sea
       if (picked) {
         onSelect(picked);
         setOpen(false);
+        setQuery(picked[labelKey] || "");
       }
       e.preventDefault();
     } else if (e.key === "Escape") {
@@ -68,34 +76,98 @@ function Autocomplete({ options = [], value = null, onSelect, placeholder = "Sea
   };
 
   return (
-    <div className="ac_container" ref={containerRef}>
-      <input
-        className="ac_input"
-        placeholder={placeholder}
-        value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={handleKeyDown}
-        aria-autocomplete="list"
-      />
+    <div className="autocomplete-wrapper" ref={containerRef}>
+      <div className="autocomplete-input-wrapper">
+        <Search size={16} className="autocomplete-search-icon" />
+        <input
+          className="autocomplete-input"
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
 
       {open && filtered.length > 0 && (
-        <ul className="ac_list" role="listbox">
+        <ul className="autocomplete-dropdown">
           {filtered.map((opt, i) => (
             <li
               key={opt.id || `${i}-${opt[labelKey]}`}
-              className={`ac_item ${i === highlight ? "highlight" : ""}`}
+              className={`autocomplete-item ${i === highlight ? "highlighted" : ""}`}
               onMouseEnter={() => setHighlight(i)}
-              onMouseDown={(e) => { e.preventDefault(); onSelect(opt); setOpen(false); }}
+              onClick={() => { onSelect(opt); setOpen(false); setQuery(opt[labelKey] || ""); }}
             >
-              <div className="ac_item_label">{opt[labelKey]}</div>
+              <div className="autocomplete-item-main">{opt[labelKey]}</div>
               {opt.short_composition1 && (
-                <div className="ac_item_sub">{opt.short_composition1}</div>
+                <div className="autocomplete-item-sub">{opt.short_composition1}</div>
               )}
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Stat Card Component for dashboard metrics
+function StatCard({ icon: Icon, label, value, color }) {
+  return (
+    <div className="stat-card">
+      <div className={`stat-icon-wrapper ${color}`}>
+        <Icon size={20} />
+      </div>
+      <div className="stat-content">
+        <div className="stat-label">{label}</div>
+        <div className="stat-value">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+// CDSS Alert Modal Component
+function CdssAlertModal({ alert, onIgnore, onModify }) {
+  if (!alert) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content cdss-modal">
+        <div className="modal-header cdss-modal-header">
+          <AlertOctagon size={24} className="cdss-modal-icon" />
+          <h3>Clinical Decision Support Alert</h3>
+          <button className="modal-close" onClick={onModify}>×</button>
+        </div>
+        
+        <div className="modal-body">
+          <p className="cdss-modal-message">{alert.message}</p>
+          
+          <div className="cdss-analysis-section">
+            <h4>Risk Analysis:</h4>
+            <ul className="cdss-analysis-list">
+              {alert.analysis.map((risk, index) => (
+                <li key={index}>
+                  <AlertCircle size={16} />
+                  <span>{risk}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          
+          <div className="cdss-recommendation">
+            <Shield size={18} />
+            <span>Review prescription before proceeding</span>
+          </div>
+        </div>
+        
+        <div className="modal-footer cdss-modal-footer">
+          <button className="btn-secondary" onClick={onModify}>
+            Modify Prescription
+          </button>
+          <button className="btn-danger" onClick={onIgnore}>
+            Proceed Anyway
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -107,11 +179,12 @@ function Prescriptions() {
   const [prescriptionForms, setPrescriptionForms] = useState({});
   const [expandedPatients, setExpandedPatients] = useState({});
   const [medicationOptions, setMedicationOptions] = useState([]);
-
   const [cdssAlert, setCdssAlert] = useState(null);
-
   const [patientQuery, setPatientQuery] = useState("");
   const [debouncedPatientQuery, setDebouncedPatientQuery] = useState("");
+  const [pendingSubmission, setPendingSubmission] = useState(null);
+  const [selectedFilter, setSelectedFilter] = useState("all");
+  const [showStats, setShowStats] = useState(true);
 
   const timingOptions = [
     "Before breakfast", "After breakfast", "Before lunch",
@@ -130,12 +203,11 @@ function Prescriptions() {
     return () => clearTimeout(t);
   }, [patientQuery]);
 
-  // Fetch medicines once (consider server-side paging for production)
+  // Fetch medicines
   useEffect(() => {
     let cancelled = false;
     axios.get(`${API_URL}/api/medicines`).then(res => {
       if (cancelled) return;
-      // normalize options: ensure id + name + composition fields
       const normalized = (res.data || []).map((m) => ({
         id: m.id || (m._id || {}).toString?.() || String(Math.random()),
         name: m.name || m.product_name || m.label || "",
@@ -153,6 +225,7 @@ function Prescriptions() {
     return () => { cancelled = true; };
   }, []);
 
+  // Fetch patients
   useEffect(() => {
     const fetchPatientData = async () => {
       try {
@@ -180,6 +253,7 @@ function Prescriptions() {
     fetchPatientData();
   }, []);
 
+  // Filter patients based on search
   const filteredPatients = useMemo(() => {
     if (!debouncedPatientQuery) return patientList;
     const q = debouncedPatientQuery.toLowerCase();
@@ -189,6 +263,23 @@ function Prescriptions() {
       (p.mobile || "").toLowerCase().includes(q)
     ));
   }, [patientList, debouncedPatientQuery]);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    const totalPatients = patientList.length;
+    const patientsWithPrescriptions = patientList.filter(p => p.prescriptions?.length > 0).length;
+    const totalPrescriptions = patientList.reduce((acc, p) => acc + (p.prescriptions?.length || 0), 0);
+    const recentPrescriptions = patientList.reduce((acc, p) => {
+      return acc + (p.prescriptions?.filter(pr => {
+        const prDate = new Date(pr.date);
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        return prDate >= sevenDaysAgo;
+      }).length || 0);
+    }, 0);
+
+    return { totalPatients, patientsWithPrescriptions, totalPrescriptions, recentPrescriptions };
+  }, [patientList]);
 
   const togglePatientView = (patientId) => {
     setExpandedPatients(prev => ({ ...prev, [patientId]: !prev[patientId] }));
@@ -203,7 +294,6 @@ function Prescriptions() {
 
       let medications = [...patientForm.medications];
 
-      // If value is an object (autocomplete), treat it as a medicine selection
       if (field === "name" && value && typeof value === "object") {
         medications[index] = {
           ...medications[index],
@@ -222,8 +312,17 @@ function Prescriptions() {
 
   const addMedicationEntry = (patientId) => {
     setPrescriptionForms((prev) => {
-      const patientForm = prev[patientId] || { medications: [{}], prescriptionDate: new Date().toISOString().split('T')[0] };
-      return { ...prev, [patientId]: { ...patientForm, medications: [...patientForm.medications, {}] } };
+      const patientForm = prev[patientId] || { 
+        medications: [{}], 
+        prescriptionDate: new Date().toISOString().split('T')[0] 
+      };
+      return { 
+        ...prev, 
+        [patientId]: { 
+          ...patientForm, 
+          medications: [...patientForm.medications, {}] 
+        } 
+      };
     });
   };
 
@@ -238,137 +337,270 @@ function Prescriptions() {
 
   const updatePrescriptionDate = (patientId, value) => {
     setPrescriptionForms((prev) => {
-      const patientForm = prev[patientId] || { medications: [{}], prescriptionDate: value };
+      const patientForm = prev[patientId] || { 
+        medications: [{}], 
+        prescriptionDate: value 
+      };
       return { ...prev, [patientId]: { ...patientForm, prescriptionDate: value } };
     });
   };
 
   const submitPrescription = async (patientId) => {
+    const formData = prescriptionForms[patientId];
+    
+    const payload = {
+      date: formData.prescriptionDate,
+      medicines: formData.medications.map(m => ({
+        name: m.name,
+        dosage: m.dosage,
+        time: m.time,
+        composition: m.composition || [m.short_composition1, m.short_composition2].filter(Boolean)
+      }))
+    };
+
     try {
-      const formData = prescriptionForms[patientId];
-      if (!formData || !formData.prescriptionDate || formData.medications.some(med => !med.name || !med.dosage || !med.time)) {
-        alert("Please complete all required medication fields");
-        return;
-      }
+      const response = await axios.post(
+        `${API_URL}/api/patients/${patientId}/prescriptions`,
+        payload
+      );
 
-      // Build payload that Flask expects: { date, medicines }
-      const payload = {
-        date: formData.prescriptionDate,
-        medicines: formData.medications.map(m => ({
-          name: m.name,
-          dosage: m.dosage,
-          time: m.time,
-          composition: m.composition || [m.short_composition1, m.short_composition2].filter(Boolean)
-        }))
-      };
+      // Show success notification
+      const notification = document.createElement('div');
+      notification.className = 'success-notification';
+      notification.innerHTML = `
+        <div class="success-content">
+          <CheckCircle size={20} />
+          <span>Prescription successfully recorded!</span>
+        </div>
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
 
-      const response = await axios.post(`${API_URL}/api/patients/${patientId}/prescriptions`, payload);
+      setPatientList((prev) => prev.map((patient) => 
+        patient._id === patientId 
+          ? { ...patient, prescriptions: [...(patient.prescriptions || []), response.data.prescription] } 
+          : patient
+      ));
 
-      alert("Prescription successfully recorded!");
+      setPrescriptionForms((prev) => ({ 
+        ...prev, 
+        [patientId]: { 
+          medications: [{}], 
+          prescriptionDate: new Date().toISOString().split('T')[0] 
+        } 
+      }));
 
-      setPatientList((prev) => prev.map((patient) => patient._id === patientId ? { ...patient, prescriptions: [...(patient.prescriptions || []), response.data.prescription] } : patient));
-
-      setPrescriptionForms((prev) => ({ ...prev, [patientId]: { medications: [{}], prescriptionDate: new Date().toISOString().split('T')[0] } }));
-
-    } 
-    catch (err) {
-
+    } catch (err) {
       if (err.response && err.response.data.cdss_analysis) {
-
+        setPendingSubmission({ patientId, payload });
         setCdssAlert({
           message: err.response.data.message,
           analysis: err.response.data.cdss_analysis
         });
-
       } else {
         alert("Server error");
       }
-
     }
+  };
 
+  const ignoreAndSubmit = async () => {
+    if (!pendingSubmission) return;
+
+    try {
+      await axios.post(
+        `${API_URL}/api/patients/${pendingSubmission.patientId}/prescriptions?override=true`,
+        pendingSubmission.payload
+      );
+
+      setCdssAlert(null);
+      setPendingSubmission(null);
+      
+      // Refresh patient data
+      const physicianData = JSON.parse(localStorage.getItem("userData"));
+      const response = await axios.get(
+        `${API_URL}/api/patients/by-doctor/${physicianData._id}`
+      );
+      setPatientList(response.data || []);
+
+    } catch (err) {
+      alert("Override failed");
+    }
   };
 
   if (isLoading) return (
-    <div className="med_manager_loading">
-      <Loader className="med_manager_spinner" size={32} />
-      <p>Loading patient records...</p>
+    <div>
+      <div>
+        <Loader size={48}/>
+        <p>Loading patient records...</p>
+      </div>
     </div>
   );
 
   if (errorMessage) return (
-    <div className="med_manager_error">
-      <AlertTriangle size={48} className="med_manager_error_icon" />
-      <h3>Data Loading Issue</h3>
+    <div className="error-screen">
+      <AlertTriangle size={64} className="error-icon" />
+      <h2>Unable to Load Data</h2>
       <p>{errorMessage}</p>
-      <button onClick={() => window.location.reload()} className="med_manager_retry_btn">Refresh Data</button>
+      <button onClick={() => window.location.reload()} className="retry-button">
+        <Loader size={16} />
+        Retry
+      </button>
     </div>
   );
 
   return (
-    <div className="med_manager_container improved">
-      <div className="med_manager_header improved_header">
-        <div className="med_manager_title_section">
-          <Pill size={28} className="med_manager_header_icon" />
+    <div className="prescriptions-dashboard">
+      {/* Header Section */}
+      <div className="dashboard-header">
+        <div className="header-title-section">
+          <div className="title-icon-wrapper">
+            <Pill size={32} />
+          </div>
           <div>
-            <h1 className="med_manager_main_title">Medication Management</h1>
-            <p className="med_manager_subtitle">Search patients, prescribe medications with composition-aware data</p>
+            <h1>Medication Management</h1>
+            <p>Manage prescriptions with clinical decision support</p>
           </div>
         </div>
 
-        <div className="med_manager_controls">
-          <div className="patient_search">
-            <Search size={16} />
-            <input
-              placeholder="Search patient by name, ID or phone"
-              value={patientQuery}
-              onChange={(e) => setPatientQuery(e.target.value)}
-            />
-          </div>
+        <div className="header-actions">
+          <button className="action-button" onClick={() => setShowStats(!showStats)}>
+            <Activity size={18} />
+            {showStats ? 'Hide' : 'Show'} Stats
+          </button>
+          <button className="action-button">
+            <Filter size={18} />
+            Filter
+          </button>
         </div>
       </div>
 
-      <div className="med_patient_list improved_list">
-        {filteredPatients.length === 0 && (
-          <div className="no_results">No patients found</div>
-        )}
+      {/* Search Bar */}
+      <div className="search-section">
+        <div className="search-wrapper">
+          <Search size={20} className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search patients by name, ID, or phone number..."
+            value={patientQuery}
+            onChange={(e) => setPatientQuery(e.target.value)}
+            className="search-input"
+          />
+          {patientQuery && (
+            <button 
+              className="clear-search"
+              onClick={() => setPatientQuery("")}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <div className="search-results-count">
+          {filteredPatients.length} patients found
+        </div>
+      </div>
 
-        {filteredPatients.map((patient) => {
-          const patientForm = prescriptionForms[patient._id] || { medications: [{}], prescriptionDate: new Date().toISOString().split('T')[0] };
-          const isPatientExpanded = expandedPatients[patient._id];
+      {/* Stats Section */}
+      {showStats && (
+        <div className="stats-grid">
+          <StatCard 
+            icon={User} 
+            label="Total Patients" 
+            value={stats.totalPatients}
+            color="blue"
+          />
+          <StatCard 
+            icon={FileText} 
+            label="Active Prescriptions" 
+            value={stats.totalPrescriptions}
+            color="green"
+          />
+          <StatCard 
+            icon={Calendar} 
+            label="Prescribed This Week" 
+            value={stats.recentPrescriptions}
+            color="purple"
+          />
+          <StatCard 
+            icon={CheckCircle} 
+            label="With Prescriptions" 
+            value={stats.patientsWithPrescriptions}
+            color="orange"
+          />
+        </div>
+      )}
 
-          return (
-            <div key={patient._id} className="med_patient_card improved_card">
-              <div className="med_patient_summary" onClick={() => togglePatientView(patient._id)}>
-                <div className="med_patient_identity">
-                  <div className="med_patient_avatar">{patient.name ? patient.name.charAt(0).toUpperCase() : 'P'}</div>
-                  <div className="med_patient_info">
-                    <h3 className="med_patient_name">{patient.name}</h3>
-                    <p className="med_patient_details">ID: {patient.patientId} • {patient.age} yrs • {patient.gender}</p>
+      {/* Patient List */}
+      <div className="patients-container">
+        {filteredPatients.length === 0 ? (
+          <div className="no-results">
+            <Search size={48} />
+            <h3>No patients found</h3>
+            <p>Try adjusting your search criteria</p>
+          </div>
+        ) : (
+          filteredPatients.map((patient) => {
+            const patientForm = prescriptionForms[patient._id] || { 
+              medications: [{}], 
+              prescriptionDate: new Date().toISOString().split('T')[0] 
+            };
+            const isPatientExpanded = expandedPatients[patient._id];
+
+            return (
+              <div key={patient._id} className="patient-card">
+                <div 
+                  className="patient-card-header"
+                  onClick={() => togglePatientView(patient._id)}
+                >
+                  <div className="patient-avatar">
+                    {patient.name ? patient.name.charAt(0).toUpperCase() : 'P'}
                   </div>
+                  <div className="patient-info">
+                    <h3>{patient.name}</h3>
+                    <div className="patient-meta">
+                      <span className="patient-id">ID: {patient.patientId}</span>
+                      <span className="patient-detail">{patient.age} years • {patient.gender}</span>
+                      {patient.prescriptions?.length > 0 && (
+                        <span className="prescription-count">
+                          {patient.prescriptions.length} prescription{patient.prescriptions.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button className="expand-button">
+                    {isPatientExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </button>
                 </div>
-                <div className="med_patient_controls">
-                  <div className="med_expand_indicator">{isPatientExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</div>
-                </div>
-              </div>
 
-              {isPatientExpanded && (
-                <div className="med_patient_expanded improved_expanded">
-                  <div className="left_col">
-                    <div className="med_existing_prescriptions">
-                      <h4 className="med_section_title"><FileText size={18} /> Current Prescriptions</h4>
+                {isPatientExpanded && (
+                  <div className="patient-card-content">
+                    {/* Existing Prescriptions */}
+                    <div className="existing-prescriptions">
+                      <h4>
+                        <FileText size={18} />
+                        Current Prescriptions
+                      </h4>
                       {patient.prescriptions && patient.prescriptions.length > 0 ? (
-                        <div className="med_prescriptions_grid">
+                        <div className="prescriptions-grid">
                           {patient.prescriptions.map((prescription, index) => (
-                            <div key={index} className="med_prescription_card">
-                              <div className="med_prescription_header">
-                                <span className="med_prescription_date"><Calendar size={14} />{new Date(prescription.date).toLocaleDateString()}</span>
-                                <span className="med_prescription_status">Active</span>
+                            <div key={index} className="prescription-card">
+                              <div className="prescription-card-header">
+                                <span className="prescription-date">
+                                  <Calendar size={14} />
+                                  {new Date(prescription.date).toLocaleDateString()}
+                                </span>
+                                <span className="prescription-status">Active</span>
                               </div>
-                              <div className="med_medications_list">
+                              <div className="prescription-medications">
                                 {prescription.medicines && prescription.medicines.map((medicine, medIndex) => (
-                                  <div key={medIndex} className="med_medication_item">
-                                    <div className="med_medication_name">{medicine.name}</div>
-                                    <div className="med_medication_schedule">{medicine.dosage} • {medicine.time}</div>
+                                  <div key={medIndex} className="medication-item">
+                                    <div className="medication-name">{medicine.name}</div>
+                                    <div className="medication-details">
+                                      <span className="dosage">{medicine.dosage}</span>
+                                      <span className="timing">
+                                        <Clock size={12} />
+                                        {medicine.time}
+                                      </span>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -376,91 +608,129 @@ function Prescriptions() {
                           ))}
                         </div>
                       ) : (
-                        <div className="med_no_prescriptions"><Pill size={24} /><p>No active prescriptions</p></div>
+                        <div className="no-prescriptions">
+                          <Pill size={32} />
+                          <p>No active prescriptions</p>
+                        </div>
                       )}
                     </div>
-                  </div>
 
-                  <div className="right_col">
-                    <div className="med_new_prescription">
-                      <h4 className="med_section_title"><Plus size={18} /> New Prescription</h4>
-                      <div className="med_form_group">
-                        <label className="med_form_label"><Calendar size={16} /> Prescription Date</label>
-                        <input type="date" value={patientForm.prescriptionDate} onChange={(e) => updatePrescriptionDate(patient._id, e.target.value)} className="med_date_input" />
-                      </div>
+                    {/* New Prescription Form */}
+                    <div className="new-prescription">
+                      <h4>
+                        <Plus size={18} />
+                        New Prescription
+                      </h4>
 
-                          {cdssAlert && (
-                          <div className="cdss_warning_box">
-                            <AlertTriangle size={18} color="red"/>
-                            <h4>Clinical Risk Detected</h4>
-                            <ul>
-                              {cdssAlert.analysis.map((r,i)=>(
-                                <li key={i}>{r}</li>
-                              ))}
-                              </ul>
-
-
-                            <button
-                              className="cdss_close_btn"
-                              onClick={() => setCdssAlert(null)}
-                            >
-                              Ignore & Modify
-                            </button>
+                      <div className="prescription-form">
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>
+                              <Calendar size={16} />
+                              Prescription Date
+                            </label>
+                            <input
+                              type="date"
+                              value={patientForm.prescriptionDate}
+                              onChange={(e) => updatePrescriptionDate(patient._id, e.target.value)}
+                              className="date-input"
+                            />
                           </div>
-                        )}
+                        </div>
 
+                        <div className="medications-section">
+                          <label>Medication Details</label>
+                          
+                          {patientForm.medications.map((medication, index) => (
+                            <div key={index} className="medication-row">
+                              <div className="medication-inputs">
+                                <Autocomplete
+                                  options={medicationOptions}
+                                  value={medication.name ? { 
+                                    name: medication.name, 
+                                    composition: medication.composition || medication.short_composition1 
+                                  } : null}
+                                  onSelect={(medObj) => updateMedicationField(patient._id, "name", medObj, index)}
+                                  placeholder="Search medicine..."
+                                  labelKey="name"
+                                />
 
-                      <div className="med_medications_form">
-                        <label className="med_form_label">Medication Details</label>
+                                <select 
+                                  value={medication.dosage || ""} 
+                                  onChange={(e) => updateMedicationField(patient._id, "dosage", e.target.value, index)}
+                                  className="select-input"
+                                >
+                                  <option value="">Dosage</option>
+                                  {dosageOptions.map((dosage, i) => (
+                                    <option key={i} value={dosage}>{dosage}</option>
+                                  ))}
+                                </select>
 
-                        {patientForm.medications.map((medication, index) => (
-                          <div key={index} className="med_medication_row improved_row">
-                            <div className="med_medication_fields">
-                              <Autocomplete
-                                options={medicationOptions}
-                                value={medication.name ? { name: medication.name, composition: medication.composition || medication.short_composition1 } : null}
-                                onSelect={(medObj) => updateMedicationField(patient._id, "name", medObj, index)}
-                                placeholder="Search medicine by name or composition"
-                                labelKey="name"
-                              />
+                                <select 
+                                  value={medication.time || ""} 
+                                  onChange={(e) => updateMedicationField(patient._id, "time", e.target.value, index)}
+                                  className="select-input"
+                                >
+                                  <option value="">Timing</option>
+                                  {timingOptions.map((time, i) => (
+                                    <option key={i} value={time}>{time}</option>
+                                  ))}
+                                </select>
+                              </div>
 
-                              <select value={medication.dosage || ""} onChange={(e) => updateMedicationField(patient._id, "dosage", e.target.value, index)} className="med_dosage_select">
-                                <option value="">Dosage</option>
-                                {dosageOptions.map((dosage, i) => <option key={i} value={dosage}>{dosage}</option>)}
-                              </select>
+                              {patientForm.medications.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeMedicationEntry(patient._id, index)}
+                                  className="remove-button"
+                                >
+                                  <X size={16} />
+                                </button>
+                              )}
 
-                              <select value={medication.time || ""} onChange={(e) => updateMedicationField(patient._id, "time", e.target.value, index)} className="med_timing_select">
-                                <option value="">Timing</option>
-                                {timingOptions.map((time, i) => <option key={i} value={time}>{time}</option>)}
-                              </select>
+                              {medication.composition && medication.composition.length > 0 && (
+                                <div className="composition-tag">
+                                  {medication.composition.join(", ")}
+                                </div>
+                              )}
                             </div>
+                          ))}
 
-                            {patientForm.medications.length > 1 && (
-                              <button type="button" onClick={() => removeMedicationEntry(patient._id, index)} className="med_remove_btn"><X size={16} /></button>
-                            )}
+                          <button
+                            type="button"
+                            onClick={() => addMedicationEntry(patient._id)}
+                            className="add-medication-button"
+                          >
+                            <Plus size={16} />
+                            Add Another Medication
+                          </button>
+                        </div>
 
-                            {medication.composition && medication.composition.length > 0 && (
-                              <div className="composition_chip">{medication.composition.join(", ")}</div>
-                            )}
-
-                          </div>
-                        ))}
-
-                        <button type="button" onClick={() => addMedicationEntry(patient._id)} className="med_add_btn"><Plus size={16} /> Add Another Medication</button>
-
-                      </div>
-
-                      <div className="form_actions">
-                        <button onClick={() => submitPrescription(patient._id)} className="med_submit_btn"><Pill size={18} /> Submit Prescription</button>
+                        <div className="form-actions">
+                          <button
+                            onClick={() => submitPrescription(patient._id)}
+                            className="submit-button"
+                          >
+                            <Pill size={18} />
+                            Submit Prescription
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
+
+      {/* CDSS Alert Modal */}
+      <CdssAlertModal 
+        alert={cdssAlert}
+        onIgnore={ignoreAndSubmit}
+        onModify={() => setCdssAlert(null)}
+      />
     </div>
   );
 }

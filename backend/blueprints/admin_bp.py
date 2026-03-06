@@ -5,9 +5,14 @@ from bson import ObjectId
 import datetime
 import bcrypt
 
+import base64
+from bson.binary import Binary
+from flask import Response
+
 # Initialize Flask
-admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
-CORS(admin_bp)  # Allow React frontend to connect
+# admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
+# CORS(admin_bp)
+  # Allow React frontend to connect
 admin_bp = Blueprint("admin", __name__)
 # MongoDB Connection
 client = MongoClient("mongodb://localhost:27017/")
@@ -109,17 +114,25 @@ from bson import ObjectId
 from flask import jsonify
 
 def serialize_doc(doc):
-    """ Recursively convert ObjectIds in a document to strings """
+
     if isinstance(doc, list):
         return [serialize_doc(item) for item in doc]
+
     elif isinstance(doc, dict):
         new_doc = {}
+
         for k, v in doc.items():
+
+            if k == "patientImage":
+                continue   # 🚨 REMOVE IMAGE BEFORE JSON RESPONSE
+
             if isinstance(v, ObjectId):
                 new_doc[k] = str(v)
             else:
                 new_doc[k] = serialize_doc(v)
+
         return new_doc
+
     else:
         return doc
 
@@ -140,79 +153,134 @@ def get_patients():
 
     # ✅ Serialize everything before jsonify
     serialized_patients = serialize_doc(patients)
-
     return jsonify(serialized_patients)
 
 # Add new patient
 @admin_bp.route("/api/patients", methods=["POST"])
 def add_patient():
     try:
-        data = request.json
+
+        data = request.form
+        image = request.files.get("image")
+
+        # ---------- IMAGE → BASE64 → BSON BINARY ----------
+        patient_image = None
+
+        if image:
+            img_bytes = image.read()
+            b64_bytes = base64.b64encode(img_bytes)
+
+            patient_image = Binary(
+                base64.b64decode(b64_bytes),
+                subtype=0
+            )
+        # --------------------------------------------------
+
         patient_type = data.get("type", "OPD")
         status = "admitted" if patient_type == "IPD" else "registered"
         admission_date = datetime.datetime.now() if patient_type == "IPD" else None
 
-        # Handle doctor assignment
         assigned_doctor = None
         if data.get("assignedDoctor"):
-            try:
-                assigned_doctor = ObjectId(data["assignedDoctor"])
-            except:
-                return jsonify({"error": "Invalid doctor ID"}), 400
+            assigned_doctor = ObjectId(data.get("assignedDoctor"))
 
         patient_doc = {
-            "patientId": f"P-{str(ObjectId())[:8]}",
-            "name": data.get("name"),
-            "age": data.get("age"),
-            "gender": data.get("gender"),
-            "bloodGroup": data.get("bloodGroup"),
-            "type": patient_type,
-            "medicalSpecialty": data.get("medicalSpecialty"),
-            "description": data.get("description"),
-            "password": data.get("password"),
-            "contact": data.get("contact", {}),
-            "insurance": data.get("insurance", {}),
-            "status": status,
-            "admissionDate": admission_date,
-            "assignedDoctor": assigned_doctor,
-            "wardNumber": data.get("wardNumber"),
-            "cartNumber": data.get("cartNumber")
-        }
+                "patientId": f"P-{str(ObjectId())[:8]}",
+                "name": data.get("name"),
+                "age": data.get("age"),
+                "gender": data.get("gender"),
+                "bloodGroup": data.get("bloodGroup"),
+                "type": patient_type,
+                "medicalSpecialty": data.get("medicalSpecialty"),
+                "description": data.get("description"),
+                "password": data.get("password"),
 
+                "contact": {
+                    "phone": data.get("phone"),
+                    "email": data.get("email"),
+                    "address": data.get("address"),
+                },
+
+                "insurance": {
+                    "provider": data.get("provider"),
+                    "policyNumber": data.get("policyNumber"),
+                },
+
+                "assignedDoctor": assigned_doctor,
+
+                # 🚨 NEW FLOW
+                "approvalStatus": "pending",
+                "status": "waiting",
+                "wardNumber": None,
+                "cartNumber": None,
+
+                "requestedAt": datetime.datetime.now(),
+                "patientImage": patient_image
+            }
         result = patients_collection.insert_one(patient_doc)
 
-        # Update doctor status if IPD
-        if assigned_doctor and patient_type == "IPD":
-            staff_collection.update_one(
-                {"_id": assigned_doctor},
-                {"$set": {"status": "unavailable"}}
-            )
-
         return jsonify({
-            "message": "Patient added successfully", 
-            "patientId": patient_doc["patientId"],
+            "message": "Patient added successfully",
             "_id": str(result.inserted_id)
         }), 201
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 # ------------------- EDIT PATIENT -------------------
 @admin_bp.route("/api/patients/<id>", methods=["PUT"])
 def edit_patient(id):
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
+    try:
 
-    result = patients_collection.update_one(
-        {"_id": ObjectId(id)},
-        {"$set": data}
+        data = request.form
+        image = request.files.get("image")
+
+        update_data = dict(data)
+
+        # ---------- IMAGE UPDATE ----------
+        if image:
+            img_bytes = image.read()
+            b64_bytes = base64.b64encode(img_bytes)
+
+            update_data["patientImage"] = Binary(
+                base64.b64decode(b64_bytes),
+                subtype=0
+            )
+        # -----------------------------------
+
+        if "assignedDoctor" in update_data and update_data["assignedDoctor"]:
+            update_data["assignedDoctor"] = ObjectId(update_data["assignedDoctor"])
+
+        result = patients_collection.update_one(
+            {"_id": ObjectId(id)},
+            {"$set": update_data}
+        )
+
+        if result.matched_count == 0:
+            return jsonify({"error": "Patient not found"}), 404
+
+        return jsonify({"message": "Patient updated successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+# image fetcch api
+import io
+
+@admin_bp.route("/api/patient/image/<patient_id>")
+def get_patient_image(patient_id):
+
+    patient = patients_collection.find_one({"_id": ObjectId(patient_id)})
+
+    if not patient or not patient.get("patientImage"):
+        return jsonify({"error": "Image not found"}), 404
+
+    # 🔥 BSON Binary → PURE BYTES
+    image_bytes = bytes(patient["patientImage"])
+
+    return Response(
+        io.BytesIO(image_bytes),
+        mimetype="image/jpeg"
     )
-
-    if result.matched_count == 0:
-        return jsonify({"error": "Patient not found"}), 404
-
-    return jsonify({"message": "Patient updated successfully"}), 200
-
-
 # ------------------- DELETE PATIENT -------------------
 @admin_bp.route("/api/patients/<id>", methods=["DELETE"])
 def delete_patient(id):

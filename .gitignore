@@ -3,6 +3,7 @@ backend/blueprints/machine/fetal_head_segmentation_model.h5
 __pycache__/
 *.pyc
 
+
 # Virtual environment
 venv/
 chatimg/
@@ -11,3 +12,4 @@ patient-app/
 
 .env
 backend/.env
+*.pyc
