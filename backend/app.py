@@ -18,6 +18,9 @@ from blueprints.lab import lab_bp
 from blueprints.machine.diseaseai import disease_bp
 # from blueprints.machine.fetal_seg import 
 from blueprints.machine.fetus_routes import fetus_bp
+#Notify
+from blueprints.notify import alerts_bp
+
 app = Flask(__name__)
 CORS(app)
 
@@ -42,6 +45,7 @@ app.register_blueprint(appointments_bp)
 app.register_blueprint(lab_bp)
 app.register_blueprint(disease_bp,url_prefix="/disease")
 app.register_blueprint(fetus_bp,url_prefix="/machine")
+app.register_blueprint(alerts_bp,url_prefix="/api")
 
 
 

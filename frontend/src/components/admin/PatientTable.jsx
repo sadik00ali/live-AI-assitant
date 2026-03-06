@@ -23,6 +23,7 @@ const PatientTable = ({ showAddForm = true }) => {
     medicalSpecialty: '',
     description: '',
     password: '',
+    image: null,
     contact: { phone: '', email: '', address: '' },
     insurance: { provider: '', policyNumber: '' },
     wardNumber: '',
@@ -91,59 +92,77 @@ const PatientTable = ({ showAddForm = true }) => {
     }
   };
 
+  const handleImageChange = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    setFormData((prev) => ({
+      ...prev,
+      image: file
+    }));
+  }
+};
+
   // Add or update patient
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      const patientData = {
-        ...formData,
-        assignedDoctor: selectedDoctor?._id || null,
-      };
+  try {
 
-      let res;
-      if (editingPatient) {
-        res = await fetch(`/api/patients/${editingPatient._id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patientData),
-        });
-      } else {
-        res = await fetch('/api/patients', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patientData),
-        });
-      }
+    const data = new FormData();
 
-      if (!res.ok) throw new Error('Failed to save patient');
+    data.append("name", formData.name);
+    data.append("age", formData.age);
+    data.append("gender", formData.gender);
+    data.append("bloodGroup", formData.bloodGroup);
+    data.append("type", formData.type);
+    data.append("medicalSpecialty", formData.medicalSpecialty);
+    data.append("description", formData.description);
+    data.append("password", formData.password);
+    data.append("wardNumber", formData.wardNumber);
+    data.append("cartNumber", formData.cartNumber);
 
-      setShowAddPopup(false);
-      setEditingPatient(null);
-      setSelectedDoctor(null);
-      setFormData({
-        name: '',
-        age: '',
-        gender: 'male',
-        bloodGroup: 'A+',
-        type: 'OPD',
-        medicalSpecialty: '',
-        description: '',
-        password: '',
-        contact: { phone: '', email: '', address: '' },
-        insurance: { provider: '', policyNumber: '' },
-        wardNumber: '',
-        cartNumber: ''
-      });
+    data.append("phone", formData.contact.phone);
+    data.append("email", formData.contact.email);
+    data.append("address", formData.contact.address);
 
-      fetchPatients();
-    } catch (err) {
-      console.error('Error saving patient:', err);
-    } finally {
-      setLoading(false);
+    data.append("provider", formData.insurance.provider);
+    data.append("policyNumber", formData.insurance.policyNumber);
+
+    data.append("assignedDoctor", selectedDoctor?._id || "");
+
+    if (formData.image) {
+      data.append("image", formData.image);
     }
-  };
+
+    let res;
+
+    if (editingPatient) {
+      res = await fetch(`${API_URL}/api/patients/${editingPatient._id}`, {
+        method: "PUT",
+        body: data
+      });
+    } else {
+      res = await fetch(`${API_URL}/api/patients`, {
+        method: "POST",
+        body: data
+      });
+    }
+
+    if (!res.ok) throw new Error("Failed to save patient");
+
+    setShowAddPopup(false);
+    setEditingPatient(null);
+    setSelectedDoctor(null);
+
+    fetchPatients();
+
+  } catch (err) {
+    console.error("Error saving patient:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Edit patient
   const handleEdit = (patient) => {
@@ -229,6 +248,7 @@ const filteredPatients = patients.filter(
       <table className="patient-table">
         <thead>
           <tr>
+            <th>Image</th>
             <th>ID</th>
             <th>Name</th>
             <th>Age</th>
@@ -245,6 +265,18 @@ const filteredPatients = patients.filter(
             .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
             .map((p) => (
               <tr key={p._id}>
+              <td>
+                <img
+                  src={`${API_URL}/api/patient/image/${p._id}`}
+                  width="40"
+                  height="40"
+                  style={{ borderRadius: "50%" }}
+                  alt="patient"
+                  onError={(e) => {
+                    e.target.src = "https://via.placeholder.com/40";
+                  }}
+                />
+              </td>
                 <td>{p.patientId}</td>
                 <td>{p.name}</td>
                 <td>{p.age}</td>
@@ -322,6 +354,14 @@ const filteredPatients = patients.filter(
                   placeholder="Full Name"
                   required
                 />
+                <div className="image-upload">
+                <label>Patient Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+              </div>
                 <input
                   type="number"
                   name="age"

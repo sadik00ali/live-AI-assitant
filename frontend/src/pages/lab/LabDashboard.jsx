@@ -18,7 +18,7 @@ function LabDashboard() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [patientInfo, setPatientInfo] = useState(null);
-
+console.log("patientId",patientInfo);
   // Test categories and types
   const testCategories = {
     "Blood Tests": ["Complete Blood Count", "Lipid Panel", "Blood Glucose", "Liver Function", "Kidney Function"],

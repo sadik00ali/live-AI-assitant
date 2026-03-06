@@ -21,6 +21,9 @@ import PatientReports from "../../components/doctor/PatientReports";
 import AddPrescription from "../../components/doctor/Prescriptions.jsx";
 import FetusPredictor from "../../components/doctor/PredictForm.jsx";
 import FetalSegmentation from "../../components/doctor/FetalSegmentation.jsx";
+// 
+import useDoctorAlerts from "../../components/reusable/useDoctorAlerts.jsx";
+
 
 function DoctorDashboard() {
   const [physician, setPhysician] = useState(null);
@@ -29,9 +32,10 @@ function DoctorDashboard() {
   const [activeSection, setActiveSection] = useState("profile");
   const [notificationCount, setNotificationCount] = useState(3);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+  
   const physicianId = localStorage.getItem("userId");
-
+  
+  const AlertPopup = useDoctorAlerts();
   useEffect(() => {
     if (!physicianId) {
       setErrorMessage("Physician ID not found. Please login again.");
@@ -116,6 +120,7 @@ function DoctorDashboard() {
   return (
     <div className="phys_portal_container">
       {/* Header Section */}
+      {AlertPopup}
       <header className="phys_portal_header">
         <div className="phys_portal_header_content">
           <div className="phys_portal_welcome">

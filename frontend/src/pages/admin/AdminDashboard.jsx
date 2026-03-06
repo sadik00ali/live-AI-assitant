@@ -15,8 +15,12 @@ import FinanceChart from '../../components/admin/FinanceChart';
 import Bedocc from '../../components/admin/BedOccupancy';
 import PatientPred from '../../components/admin/PatientPrediction';
 import Emergency from '../../components/admin/Emergency';
+// resuable hooks
+import useDoctorAlerts from '../../components/reusable/useDoctorAlerts';
+
 
 const AdminDashboard = () => {
+  useDoctorAlerts();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dashboardData, setDashboardData] = useState({
