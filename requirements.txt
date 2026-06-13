@@ -1,0 +1,7 @@
+streamlit
+pypdf
+langchain-google-genai
+langchain-community
+langgraph
+tavily-python
+gTTS
