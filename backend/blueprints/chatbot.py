@@ -202,7 +202,7 @@ def ollama_reply_or_fallback(prompt):
     try:
         OLLAMA_API = "http://127.0.0.1:11434/api/generate"
         payload = {
-            "model": "llama3:latest",
+            "model": "medicare-llama:latest",
             "prompt": prompt,
             "stream": False
         }
